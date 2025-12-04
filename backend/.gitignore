@@ -1,0 +1,17 @@
+# Dependencies
+/node_modules
+
+# dotenv environment variables file
+.env
+.env.*
+!.env.example
+
+# Log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS generated files
+.DS_Store
+Thumbs.db

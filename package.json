@@ -1,0 +1,25 @@
+{
+  "name": "daily-dubai-lottery",
+  "version": "1.0.0",
+  "description": "A full-featured lottery game application with admin and user roles, powered by Gemini Smart.",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "npm run clean && vite build",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@google/genai": "^1.10.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-router-dom": "^7.7.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.4",
+    "typescript": "^5.3.3",
+    "vite": "^5.3.5"
+  }
+}

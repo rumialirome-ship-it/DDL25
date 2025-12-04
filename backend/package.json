@@ -1,0 +1,24 @@
+{
+  "name": "ddl-backend",
+  "version": "1.0.0",
+  "description": "Backend for Daily Dubai Lottery",
+  "main": "server.js",
+  "scripts": {
+    "start": "node -r dotenv/config server.js",
+    "dev": "nodemon -r dotenv/config server.js",
+    "db:init": "echo \"Database initialization is now handled by your MySQL server.\"",
+    "db:seed": "node -r dotenv/config ./database/seed.js",
+    "admin:reset-password": "node -r dotenv/config utils/resetAdminPassword.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.0",
+    "mysql2": "^3.10.1"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.20"
+  }
+}

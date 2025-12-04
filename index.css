@@ -1,0 +1,143 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Enhanced global styles for a more polished look */
+html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: radial-gradient(ellipse at center, hsl(222, 24%, 14%) 0%, hsl(212, 33%, 8%) 100%);
+    z-index: -1;
+    pointer-events: none;
+}
+
+body::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='300' height='200'%3e%3ctext x='50%25' y='50%25' font-size='20' font-family='Inter, sans-serif' fill='rgba(230,237,243,0.08)' text-anchor='middle' dominant-baseline='middle' transform='rotate(-30, 150, 100)'%3eDubai-Lottery%3c/text%3e%3c/svg%3e");
+    background-repeat: repeat;
+    z-index: 9999;
+    pointer-events: none;
+}
+
+/* Custom Scrollbar Styling */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: #161b22; /* brand-surface */
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: #3d444d; /* slightly lighter than brand-secondary */
+    border-radius: 10px;
+    border: 2px solid #161b22; /* brand-surface */
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background-color: #8b949e; /* brand-text-secondary */
+}
+
+/* --- UI/UX Polish & Enhancements --- */
+
+/* Add smooth transitions to interactive elements for a more fluid feel. */
+button, a {
+    transition: all 0.2s ease-in-out;
+}
+
+/* Enhance primary buttons to feel more responsive and important. */
+.bg-brand-primary:hover, .bg-brand-primary:focus {
+    transform: translateY(-2px);
+    filter: brightness(1.1);
+}
+
+/* Improve table readability with zebra striping. */
+table > tbody > tr:nth-of-type(even) {
+    background-color: rgba(22, 27, 34, 0.5); /* Semi-transparent version of brand-surface */
+}
+
+/* Animate the 'Actions' dropdown menu in the admin panel for a smoother appearance. */
+div[class*="origin-top-right"][class*="absolute"] {
+    animation: scale-in 0.15s ease-out;
+}
+
+/* --- Countdown Component Enhancements --- */
+.countdown-box {
+    background: linear-gradient(145deg, hsl(212, 17%, 18%), hsl(212, 16%, 24%));
+    border-radius: 0.375rem; /* rounded-md */
+    padding: 0.25rem 0.5rem; /* p-1 px-2 */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.5), 0 2px 3px rgba(0,0,0,0.2);
+    position: relative;
+    overflow: hidden;
+    min-width: 48px;
+}
+
+.countdown-box::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.countdown-number {
+    font-family: 'ui-monospace', monospace;
+    font-size: 1.25rem; /* text-xl */
+    line-height: 1.75rem;
+    font-weight: 700;
+    color: #f7c314; /* brand-primary */
+    text-shadow: 0 0 5px rgba(247, 195, 20, 0.4);
+}
+
+.countdown-separator {
+    font-size: 1.25rem; /* text-xl */
+    font-weight: 700;
+    color: #8b949e; /* brand-text-secondary */
+    animation: blink-soft 1.5s infinite ease-in-out;
+    transform: translateY(-8px); /* Align with numbers */
+}
+
+@keyframes slide-down-pop {
+    0% {
+        opacity: 0;
+        transform: translateY(-50%);
+    }
+    50% {
+        opacity: 1;
+        transform: translateY(10%);
+    }
+    100% {
+        transform: translateY(0);
+    }
+}
+
+.animate-slide-down-pop {
+    animation: slide-down-pop 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+@keyframes blink-soft {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
