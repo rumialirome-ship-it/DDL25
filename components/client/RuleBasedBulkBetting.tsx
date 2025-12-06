@@ -3,7 +3,6 @@ import { useAppContext } from '../../contexts/AppContext';
 import { parseMessageWithRules } from '../../services/RuleBasedParser';
 import { ParsedBet, GameType, BettingCondition } from '../../types';
 import { getGameTypeDisplayName } from '../../utils/helpers';
-import Countdown from '../common/Countdown.tsx';
 
 const RuleBasedBulkBetting = () => {
     const { currentClient, draws, placeBulkBetsForCurrentClient } = useAppContext();
@@ -124,24 +123,22 @@ const RuleBasedBulkBetting = () => {
             {openDraws.length > 0 && currentClient ? (
                 <div className="space-y-6">
                      <div>
-                        <label className="block text-sm font-bold text-brand-text-secondary mb-2">Select an Open Draw</label>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                        <label htmlFor="draw-select-client" className="block text-sm font-bold text-brand-text-secondary mb-2">Select an Open Draw</label>
+                        <select
+                            id="draw-select-client"
+                            value={selectedDrawId}
+                            onChange={e => setSelectedDrawId(e.target.value)}
+                            className="w-full bg-brand-surface border border-brand-secondary rounded-lg py-3 px-4 text-brand-text focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                        >
                             {openDraws.map(draw => {
-                                const isSelected = draw.id === selectedDrawId;
                                 const bettingCloseTime = new Date(draw.drawTime.getTime() - 10 * 60 * 1000);
                                 return (
-                                    <button
-                                        key={draw.id}
-                                        onClick={() => setSelectedDrawId(draw.id)}
-                                        className={`p-3 rounded-lg border text-center transition-all duration-200 ${isSelected ? 'bg-brand-primary/20 border-brand-primary ring-2 ring-brand-primary shadow-lg' : 'bg-brand-surface border-brand-secondary hover:border-brand-primary/50'}`}
-                                    >
-                                        <h4 className="font-bold text-brand-text">Draw {draw.name}</h4>
-                                        <p className="text-xs text-brand-text-secondary mb-2">Time: {draw.drawTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                                        <Countdown targetDate={bettingCloseTime} />
-                                    </button>
+                                    <option key={draw.id} value={draw.id}>
+                                        Draw {draw.name} - Closes at {bettingCloseTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
+                                    </option>
                                 );
                             })}
-                        </div>
+                        </select>
                     </div>
                    
                     <div>

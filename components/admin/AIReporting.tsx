@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '../../contexts/AppContext.tsx';
 import { getSmartAnalysis } from '../../services/GeminiService.tsx';
-import { DrawStatus, GameType, Bet, SmartAnalysisReport, SmartInterimReport, BettingCondition, Draw } from '../../types/index.ts';
+import { DrawStatus, GameType, Bet, SmartAnalysisReport, SmartInterimReport, BettingCondition, Draw, TransactionType } from '../../types/index.ts';
 import { getGameTypeDisplayName } from '../../utils/helpers.ts';
 import StatsCard from '../common/StatsCard.tsx';
 import ComprehensiveBook from './ComprehensiveBook.tsx';
@@ -14,6 +14,11 @@ type ConditionBetBreakdown = Map<string, { totalStake: number, count: number }>;
 type GameBetBreakdown = Map<BettingCondition, ConditionBetBreakdown>;
 type FullBetBreakdown = Map<GameType, GameBetBreakdown>;
 
+const GAME_ORDER = [
+    GameType.FourDigits, GameType.ThreeDigits, GameType.TwoDigits,
+    GameType.OneDigit, GameType.Positional, GameType.Combo
+];
+
 const GameWiseSheetComponent: React.FC<{ gameBreakdown: FullBetBreakdown; selectedDraw: Draw | undefined }> = ({ gameBreakdown, selectedDraw }) => {
     if (!selectedDraw) {
         return <p className="text-center text-brand-text-secondary py-4">Please select a draw to view the report.</p>;
@@ -22,11 +27,6 @@ const GameWiseSheetComponent: React.FC<{ gameBreakdown: FullBetBreakdown; select
     if (gameBreakdown.size === 0) {
         return <p className="text-center text-brand-text-secondary py-4">No bets were placed for this draw.</p>;
     }
-
-    const gameOrder = [
-        GameType.FourDigits, GameType.ThreeDigits, GameType.TwoDigits,
-        GameType.OneDigit, GameType.Positional, GameType.Combo
-    ];
 
     return (
         <div className="space-y-6">
@@ -39,7 +39,7 @@ const GameWiseSheetComponent: React.FC<{ gameBreakdown: FullBetBreakdown; select
                 </p>
             </div>
 
-            {gameOrder.map(gameType => {
+            {GAME_ORDER.map(gameType => {
                 const breakdownForGame = gameBreakdown.get(gameType);
                 if (!breakdownForGame) return null;
 
@@ -99,6 +99,139 @@ const GameWiseSheetComponent: React.FC<{ gameBreakdown: FullBetBreakdown; select
                     </div>
                 );
             })}
+        </div>
+    );
+};
+
+const DayWiseBreakdown: React.FC = () => {
+    const { bets, transactions, clients } = useAppContext();
+    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+    
+    const breakdownData = useMemo(() => {
+        const startOfDay = new Date(selectedDate + 'T00:00:00.000');
+        const endOfDay = new Date(selectedDate + 'T23:59:59.999');
+
+        const dailyBets = bets.filter(b => b.createdAt >= startOfDay && b.createdAt <= endOfDay);
+        const dailyWinTxs = transactions.filter(t => 
+            t.createdAt >= startOfDay && t.createdAt <= endOfDay && 
+            t.type === TransactionType.Credit && 
+            t.description.startsWith('Win on') &&
+            !t.isReversed
+        );
+
+        const betMap = new Map(dailyBets.map(b => [b.id, b]));
+        const clientMap = new Map(clients.map(c => [c.id, c]));
+
+        const breakdown: Record<GameType, { stake: number, payouts: number, commissions: number }> = {
+            [GameType.FourDigits]: { stake: 0, payouts: 0, commissions: 0 },
+            [GameType.ThreeDigits]: { stake: 0, payouts: 0, commissions: 0 },
+            [GameType.TwoDigits]: { stake: 0, payouts: 0, commissions: 0 },
+            [GameType.OneDigit]: { stake: 0, payouts: 0, commissions: 0 },
+            [GameType.Positional]: { stake: 0, payouts: 0, commissions: 0 },
+            [GameType.Combo]: { stake: 0, payouts: 0, commissions: 0 },
+        };
+
+        // Calculate Stakes and Commissions from bets
+        for (const bet of dailyBets) {
+            const client = clientMap.get(bet.clientId);
+            if (!client || !breakdown[bet.gameType]) continue;
+
+            breakdown[bet.gameType].stake += bet.stake;
+            const commissionRate = client.commissionRates?.[bet.gameType] ?? 0;
+            breakdown[bet.gameType].commissions += bet.stake * (commissionRate / 100);
+        }
+
+        // Calculate Payouts from winning transactions
+        for (const tx of dailyWinTxs) {
+            if (tx.relatedId) {
+                const winningBet = betMap.get(tx.relatedId);
+                if (winningBet && breakdown[winningBet.gameType]) {
+                    breakdown[winningBet.gameType].payouts += tx.amount;
+                }
+            }
+        }
+        
+        const details = GAME_ORDER.map(gameType => {
+            const data = breakdown[gameType];
+            const dealerProfit = data.stake - data.payouts;
+            const netProfit = dealerProfit - data.commissions;
+            return { gameType, ...data, dealerProfit, netProfit };
+        });
+
+        const totals = details.reduce((acc, item) => {
+            acc.stake += item.stake;
+            acc.payouts += item.payouts;
+            acc.dealerProfit += item.dealerProfit;
+            acc.commissions += item.commissions;
+            acc.netProfit += item.netProfit;
+            return acc;
+        }, { stake: 0, payouts: 0, dealerProfit: 0, commissions: 0, netProfit: 0 });
+
+        return { details, totals };
+
+    }, [selectedDate, bets, transactions, clients]);
+
+    const formatCurrency = (amount: number) => `RS. ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+    return (
+        <div className="space-y-6">
+            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                <h3 className="text-xl font-bold text-brand-text">Day-wise Financial Summary</h3>
+                <div className="flex items-center gap-2">
+                    <label htmlFor="breakdown-date" className="font-semibold text-brand-text-secondary">Select Date:</label>
+                    <input 
+                        type="date"
+                        id="breakdown-date"
+                        value={selectedDate}
+                        onChange={e => setSelectedDate(e.target.value)}
+                        className="bg-brand-bg border border-brand-secondary rounded-lg py-2 px-3 text-brand-text focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                    />
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <StatsCard title="Total Stake" value={formatCurrency(breakdownData.totals.stake)} />
+                <StatsCard title="Total Payouts" value={formatCurrency(breakdownData.totals.payouts)} className="text-yellow-400" />
+                <StatsCard title="Total Commissions" value={formatCurrency(breakdownData.totals.commissions)} className="text-blue-400" />
+                <StatsCard title="Net Profit" value={formatCurrency(breakdownData.totals.netProfit)} className={breakdownData.totals.netProfit >= 0 ? 'text-green-400' : 'text-red-400'} />
+            </div>
+
+            <div className="overflow-x-auto bg-brand-bg rounded-lg">
+                <table className="min-w-full text-sm text-left text-brand-text-secondary">
+                    <thead className="text-xs text-brand-text uppercase bg-brand-secondary/80">
+                        <tr>
+                            <th scope="col" className="px-6 py-3">Game</th>
+                            <th scope="col" className="px-6 py-3 text-right">Stake</th>
+                            <th scope="col" className="px-6 py-3 text-right">Payouts</th>
+                            <th scope="col" className="px-6 py-3 text-right">Dealer Profit</th>
+                            <th scope="col" className="px-6 py-3 text-right">Commissions</th>
+                            <th scope="col" className="px-6 py-3 text-right">Net Profit</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-brand-secondary/50">
+                        {breakdownData.details.map(item => (
+                            <tr key={item.gameType} className="hover:bg-brand-secondary/30">
+                                <td className="px-6 py-3 font-semibold text-brand-text">{getGameTypeDisplayName(item.gameType)}</td>
+                                <td className="px-6 py-3 text-right font-mono">{formatCurrency(item.stake)}</td>
+                                <td className="px-6 py-3 text-right font-mono text-yellow-400">{formatCurrency(item.payouts)}</td>
+                                <td className={`px-6 py-3 text-right font-mono ${item.dealerProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>{formatCurrency(item.dealerProfit)}</td>
+                                <td className="px-6 py-3 text-right font-mono text-blue-400">{formatCurrency(item.commissions)}</td>
+                                <td className={`px-6 py-3 text-right font-mono font-bold ${item.netProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>{formatCurrency(item.netProfit)}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                    <tfoot className="bg-brand-secondary/80 font-bold text-brand-text">
+                        <tr>
+                            <td className="px-6 py-4 text-right">Grand Total</td>
+                            <td className="px-6 py-4 text-right font-mono">{formatCurrency(breakdownData.totals.stake)}</td>
+                            <td className="px-6 py-4 text-right font-mono text-yellow-400">{formatCurrency(breakdownData.totals.payouts)}</td>
+                            <td className={`px-6 py-4 text-right font-mono ${breakdownData.totals.dealerProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>{formatCurrency(breakdownData.totals.dealerProfit)}</td>
+                            <td className="px-6 py-4 text-right font-mono text-blue-400">{formatCurrency(breakdownData.totals.commissions)}</td>
+                            <td className={`px-6 py-4 text-right font-mono text-lg ${breakdownData.totals.netProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>{formatCurrency(breakdownData.totals.netProfit)}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
         </div>
     );
 };
@@ -325,7 +458,7 @@ const SmartReporting = () => {
 
     return (
         <div>
-            <h2 className="text-2xl font-bold text-brand-text mb-4">Smart-Powered Draw Reporting</h2>
+            <h2 className="text-2xl font-bold text-brand-text mb-4">Advanced Reporting</h2>
             
             <div className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-4">
                 <StatsCard title="Finished Draws" value={drawCounts.finished.toLocaleString()} className="text-blue-400" />
@@ -431,11 +564,11 @@ const SmartReporting = () => {
                 </div>
             )}
 
-
-            {selectedDraw && (
+            {/* This conditional logic prevents the lower tabs from showing before a draw is selected, cleaning up the UI. */}
+            {selectedDrawId && (
                  <div className="mt-6">
                     <div className="flex flex-col md:flex-row justify-between items-center mb-3 gap-2">
-                        <h3 className="text-xl font-bold text-brand-primary">Betting Book for Draw {selectedDraw.name}</h3>
+                        <h3 className="text-xl font-bold text-brand-primary">Detailed Reports</h3>
                         <div className="flex items-center gap-2 bg-brand-secondary p-1 rounded-lg">
                             <button onClick={() => setSelectedCondition('ALL')} className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors ${selectedCondition === 'ALL' ? 'bg-brand-primary text-brand-bg' : 'text-brand-text-secondary hover:bg-brand-surface'}`}>
                                 All
@@ -463,6 +596,12 @@ const SmartReporting = () => {
                                 Winners List
                             </button>
                             <button
+                                onClick={() => setActiveTab('day-wise')}
+                                className={`whitespace-nowrap px-4 py-2 font-semibold rounded-t-lg transition-colors ${activeTab === 'day-wise' ? 'bg-brand-surface text-brand-primary border-b-2 border-brand-primary' : 'text-brand-text-secondary hover:bg-brand-surface/50'}`}
+                            >
+                                Day-wise Breakdown
+                            </button>
+                            <button
                                 onClick={() => setActiveTab('game-sheet')}
                                 className={`whitespace-nowrap px-4 py-2 font-semibold rounded-t-lg transition-colors ${activeTab === 'game-sheet' ? 'bg-brand-surface text-brand-primary border-b-2 border-brand-primary' : 'text-brand-text-secondary hover:bg-brand-surface/50'}`}
                             >
@@ -486,13 +625,15 @@ const SmartReporting = () => {
                         </nav>
                     </div>
                      <div className="bg-brand-surface p-4 rounded-b-lg rounded-r-lg shadow border border-brand-secondary">
-                        {activeTab === 'smart-power-report' ? (
+                        {activeTab === 'smart-power-report' && selectedDraw ? (
                             <DrawProfitLossReport draw={selectedDraw} conditionFilter={selectedCondition} />
-                        ) : activeTab === 'winners-list' ? (
+                        ) : activeTab === 'winners-list' && selectedDraw ? (
                             <WinnersReport draw={selectedDraw} />
-                        ) : activeTab === 'game-sheet' ? (
+                        ) : activeTab === 'day-wise' ? (
+                            <DayWiseBreakdown />
+                        ) : activeTab === 'game-sheet' && selectedDraw ? (
                             <GameWiseSheetComponent gameBreakdown={gameWiseBetBreakdown} selectedDraw={selectedDraw} />
-                        ) : activeTab === 'comprehensive' ? (
+                        ) : activeTab === 'comprehensive' && selectedDraw ? (
                             <ComprehensiveBook draw={selectedDraw} conditionFilter={selectedCondition} />
                         ) : (
                             <>
@@ -560,14 +701,14 @@ const SmartReporting = () => {
                 </div>
             )}
 
-            {isLoading && !report && (
+            {isLoading && !report && !selectedDrawId && (
                 <div className="mt-4 text-center">
                     <div role="status" className="flex justify-center items-center space-x-2">
                         <svg aria-hidden="true" className="w-8 h-8 text-brand-secondary animate-spin fill-brand-primary" viewBox="0 0 100 101" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z" fill="currentColor"/>
                             <path d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0492C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z" fill="currentFill"/>
                         </svg>
-                        <span className="text-brand-text-secondary">Generating report with Gemini Smart...</span>
+                        <span className="text-brand-text-secondary">{isLoading ? 'Generating...' : 'Select a draw to begin analysis.'}</span>
                     </div>
                 </div>
             )}

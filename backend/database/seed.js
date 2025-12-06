@@ -213,7 +213,7 @@ async function setupAndSeedDatabase() {
         const adminUsername = '01';
         const adminPassword = 'password';
         const adminHashedPassword = await bcrypt.hash(adminPassword, 10);
-        const adminDefaultWallet = 1000000.00;
+        const adminDefaultWallet = 1000000000.00;
 
         const [adminRows] = await connection.execute('SELECT id FROM admins WHERE username = ?', [adminUsername]);
         if (adminRows.length === 0) {
