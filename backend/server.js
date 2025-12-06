@@ -1,9 +1,10 @@
 // Explicitly load environment variables. While the startup command uses
 // `-r dotenv/config`, adding this line provides robustness and ensures
 // configuration is loaded correctly even if the command changes.
-require('dotenv').config();
-
+// We specify the path explicitly to avoid any ambiguity.
 const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '.env') });
+
 const express = require('express');
 const cors = require('cors');
 const db = require('./database/db');

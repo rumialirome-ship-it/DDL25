@@ -1,8 +1,9 @@
 // Explicitly load environment variables from a .env file. This provides a
 // robust fallback if the `-r dotenv/config` flag in the npm script fails.
-require('dotenv').config();
-
+// We specify the path explicitly to avoid any ambiguity.
 const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
+
 const bcrypt = require('bcryptjs');
 const dbPool = require('./db'); // This is the mysql2 pool
 const { defaultPrizeRates, defaultCommissionRates } = require(path.resolve(__dirname, '..', 'data', 'defaultRates.js'));

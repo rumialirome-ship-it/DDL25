@@ -1,6 +1,8 @@
 // Explicitly load environment variables from a .env file. This is crucial for
 // standalone scripts that rely on database credentials.
-require('dotenv').config();
+// We specify the path explicitly to avoid any ambiguity.
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
 const bcrypt = require('bcryptjs');
 const dbPool = require('../database/db');
