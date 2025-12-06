@@ -1,5 +1,5 @@
 import React, { useEffect, useCallback } from 'react';
-import { HashRouter } from 'react-router-dom';
+import * as ReactRouterDOM from 'react-router-dom';
 import { AppProvider, useAppContext } from './contexts/AppContext.tsx';
 import AppRoutes from './routes/AppRoutes.tsx';
 import { Role } from './types/index.ts';
@@ -72,10 +72,10 @@ const App = () => {
     
     return (
         <AppProvider>
-            <HashRouter>
+            <ReactRouterDOM.HashRouter>
                 <InactivityManager />
                 <AppRoutes />
-            </HashRouter>
+            </ReactRouterDOM.HashRouter>
         </AppProvider>
     );
 };

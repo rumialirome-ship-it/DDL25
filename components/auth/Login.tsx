@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import * as ReactRouterDOM from 'react-router-dom';
 import { useAppContext } from '../../contexts/AppContext.tsx';
 import { Role } from '../../types/index.ts';
 import LockIcon from '../common/LockIcon.tsx';
@@ -23,7 +23,7 @@ const Login: React.FC = () => {
     const [error, setError] = useState('');
     const [selectedRole, setSelectedRole] = useState<Role | null>(null);
     const [isLoading, setIsLoading] = useState(false);
-    const navigate = useNavigate();
+    const navigate = ReactRouterDOM.useNavigate();
 
     const { login } = useAppContext();
 

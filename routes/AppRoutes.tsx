@@ -1,5 +1,5 @@
 import React, { Suspense } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import * as ReactRouterDOM from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext.tsx';
 
 // --- PERFORMANCE OPTIMIZATION: LAZY LOADING ---
@@ -24,12 +24,12 @@ const AppRoutes = () => {
         // show a fallback UI (like our LoadingFallback component) while the
         // requested component code is being downloaded from the server.
         <Suspense fallback={<LoadingFallback />}>
-            <Routes>
-                <Route path="/" element={currentClient ? <Navigate to="/dashboard" /> : <LandingPage />} />
-                <Route path="/login" element={currentClient ? <Navigate to="/dashboard" /> : <Login />} />
-                <Route path="/dashboard" element={currentClient ? <Dashboard /> : <Navigate to="/login" />} />
-                <Route path="*" element={<Navigate to="/" />} />
-            </Routes>
+            <ReactRouterDOM.Routes>
+                <ReactRouterDOM.Route path="/" element={currentClient ? <ReactRouterDOM.Navigate to="/dashboard" /> : <LandingPage />} />
+                <ReactRouterDOM.Route path="/login" element={currentClient ? <ReactRouterDOM.Navigate to="/dashboard" /> : <Login />} />
+                <ReactRouterDOM.Route path="/dashboard" element={currentClient ? <Dashboard /> : <ReactRouterDOM.Navigate to="/login" />} />
+                <ReactRouterDOM.Route path="*" element={<ReactRouterDOM.Navigate to="/" />} />
+            </ReactRouterDOM.Routes>
         </Suspense>
     );
 };

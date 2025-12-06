@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import * as ReactRouterDOM from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext.tsx';
 import Header from '../components/common/Header.tsx';
 import Footer from '../components/common/Footer.tsx';
@@ -31,9 +31,9 @@ const LandingPage = () => {
                     
                     {!currentClient && (
                         <div className="mt-12">
-                            <Link to="/login" className="bg-brand-primary text-brand-bg font-bold py-3 px-8 rounded-lg text-lg hover:shadow-glow transition-all transform hover:scale-105">
+                            <ReactRouterDOM.Link to="/login" className="bg-brand-primary text-brand-bg font-bold py-3 px-8 rounded-lg text-lg hover:shadow-glow transition-all transform hover:scale-105">
                                 Login to Play
-                            </Link>
+                            </ReactRouterDOM.Link>
                         </div>
                     )}
 
