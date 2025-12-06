@@ -1,5 +1,7 @@
-// Environment variables are loaded by the node -r dotenv/config command
-// when this script is run via 'npm run db:seed'.
+// Explicitly load environment variables from a .env file. This provides a
+// robust fallback if the `-r dotenv/config` flag in the npm script fails.
+require('dotenv').config();
+
 const path = require('path');
 const bcrypt = require('bcryptjs');
 const dbPool = require('./db'); // This is the mysql2 pool

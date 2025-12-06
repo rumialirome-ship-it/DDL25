@@ -1,5 +1,8 @@
-// Environment variables are loaded by the node -r dotenv/config command.
-// This ensures they are available before any other code is executed.
+// Explicitly load environment variables. While the startup command uses
+// `-r dotenv/config`, adding this line provides robustness and ensures
+// configuration is loaded correctly even if the command changes.
+require('dotenv').config();
+
 const path = require('path');
 const express = require('express');
 const cors = require('cors');

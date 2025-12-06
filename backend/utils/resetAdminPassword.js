@@ -1,5 +1,7 @@
-// Environment variables are loaded by the node -r dotenv/config command
-// when this script is run via 'npm run admin:reset-password'.
+// Explicitly load environment variables from a .env file. This is crucial for
+// standalone scripts that rely on database credentials.
+require('dotenv').config();
+
 const bcrypt = require('bcryptjs');
 const dbPool = require('../database/db');
 
