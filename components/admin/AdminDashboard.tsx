@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useAppContext } from '../../contexts/AppContext.tsx';
 import ClientManagement from './ClientManagement.tsx';
 import DrawManagement from './DrawManagement.tsx';
 import LiveBettingMonitor from './LiveBettingMonitor.tsx';
@@ -8,6 +9,7 @@ import ProfileSettings from './ProfileSettings.tsx';
 import DataManagement from './DataManagement.tsx';
 import AdminStatsOverview from './AdminStatsOverview.tsx';
 import AdminFinancials from './AdminFinancials.tsx';
+import Spinner from '../common/Spinner.tsx';
 
 
 // Icons for the tabs
@@ -22,8 +24,8 @@ const FinancialsIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="
 
 
 const AdminDashboard = () => {
-    // Default tab changed to 'clients' for a better workflow
     const [activeTab, setActiveTab] = useState('clients');
+    const { isSecondaryLoading } = useAppContext();
 
     const renderContent = () => {
         switch (activeTab) {
@@ -57,7 +59,6 @@ const AdminDashboard = () => {
             <AdminStatsOverview />
             <div className="border-b border-brand-secondary">
                 <nav className="-mb-px flex space-x-2 md:space-x-4 overflow-x-auto">
-                    {/* Tabs have been reordered for a more logical admin workflow and icons have been added */}
                     <TabButton tabId="clients" icon={<ClientsIcon />}>Clients</TabButton>
                     <TabButton tabId="draws" icon={<DrawIcon />}>Draws</TabButton>
                     <TabButton tabId="bulk" icon={<BulkIcon />}>Bulk Betting</TabButton>
@@ -68,7 +69,17 @@ const AdminDashboard = () => {
                     <TabButton tabId="profile" icon={<ProfileIcon />}>Profile</TabButton>
                 </nav>
             </div>
-            <div className="pt-6">{renderContent()}</div>
+            <div className="pt-6 relative min-h-[300px]">
+                {isSecondaryLoading && (
+                    <div className="absolute inset-0 bg-brand-surface/80 flex flex-col items-center justify-center z-10 rounded-b-xl">
+                        <Spinner />
+                        <p className="mt-4 text-brand-text-secondary">Loading admin data...</p>
+                    </div>
+                )}
+                <div className={`${isSecondaryLoading ? 'opacity-20 blur-sm' : ''} transition-opacity duration-300`}>
+                    {renderContent()}
+                </div>
+            </div>
         </div>
     );
 };

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useAppContext } from '../../contexts/AppContext.tsx';
 import WalletInfo from './WalletInfo.tsx';
 import BettingInterface from './BettingInterface.tsx';
 import BetHistory from './BetHistory.tsx';
@@ -7,9 +8,36 @@ import RuleBasedBulkBetting from './RuleBasedBulkBetting.tsx';
 import FinancialStatement from './FinancialStatement.tsx';
 import WalletManagement from './WalletManagement.tsx';
 import ClientProfile from './ClientProfile.tsx';
+import Spinner from '../common/Spinner.tsx';
+
+const DataLoadingFallback: React.FC = () => (
+    <div className="flex flex-col items-center justify-center min-h-[200px] text-brand-text-secondary">
+        <Spinner />
+        <p className="mt-4">Loading your data...</p>
+    </div>
+);
 
 const ClientDashboard = () => {
     const [activeTab, setActiveTab] = useState('bulk-betting');
+    const { isSecondaryLoading } = useAppContext();
+
+    const needsSecondaryData = activeTab === 'history' || activeTab === 'statement';
+
+    const renderContent = () => {
+        if (needsSecondaryData && isSecondaryLoading) {
+            return <DataLoadingFallback />;
+        }
+        
+        switch (activeTab) {
+            case 'booking': return <BettingInterface />;
+            case 'bulk-betting': return <RuleBasedBulkBetting />;
+            case 'history': return <BetHistory />;
+            case 'statement': return <FinancialStatement />;
+            case 'wallet': return <WalletManagement />;
+            case 'profile': return <ClientProfile />;
+            default: return null;
+        }
+    };
 
     return (
         <div className="space-y-8">
@@ -26,12 +54,7 @@ const ClientDashboard = () => {
                     </nav>
                 </div>
                 <div className="p-4 md:p-6">
-                    {activeTab === 'booking' && <BettingInterface />}
-                    {activeTab === 'bulk-betting' && <RuleBasedBulkBetting />}
-                    {activeTab === 'history' && <BetHistory />}
-                    {activeTab === 'statement' && <FinancialStatement />}
-                    {activeTab === 'wallet' && <WalletManagement />}
-                    {activeTab === 'profile' && <ClientProfile />}
+                    {renderContent()}
                 </div>
             </div>
         </div>

@@ -105,7 +105,7 @@ const GameWiseSheetComponent: React.FC<{ gameBreakdown: FullBetBreakdown; select
 
 const DayWiseBreakdown: React.FC = () => {
     const { bets, transactions, clients } = useAppContext();
-    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+    const [selectedDate, setSelectedDate] = useState('2025-12-06');
     
     const breakdownData = useMemo(() => {
         const startOfDay = new Date(selectedDate + 'T00:00:00.000');

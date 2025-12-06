@@ -141,28 +141,64 @@ const DrawStatusCard: React.FC<{ draw: Draw; prevDraw?: Draw }> = ({ draw, prevD
 };
 
 
+// Skeleton loader for a single card to reserve space during initial load
+const SkeletonCard: React.FC = () => (
+    <div className="bg-brand-surface border border-brand-secondary p-4 rounded-xl shadow-lg h-[210px] animate-pulse">
+        <div className="h-5 bg-brand-secondary rounded w-3/4 mx-auto mb-3"></div>
+        <div className="h-3 bg-brand-secondary rounded w-1/2 mx-auto mb-6"></div>
+        <div className="h-8 bg-brand-secondary rounded w-2/4 mx-auto mb-4"></div>
+        <div className="h-10 bg-brand-secondary rounded w-3/4 mx-auto"></div>
+    </div>
+);
+
+
 const MarketStatus: React.FC = () => {
-    const { draws } = useAppContext();
+    const { draws, isLoading } = useAppContext();
     const prevDrawsRef = useRef<Draw[] | undefined>(undefined);
 
     useEffect(() => {
         prevDrawsRef.current = draws;
     }, [draws]);
     
-    return (
-        <div className="bg-brand-surface/50 p-6 rounded-xl shadow-lg border border-brand-secondary">
-            <h2 className="text-2xl font-semibold text-brand-primary mb-4 text-center">Today's Draw Status ({draws.length > 0 ? `${draws.length} Draws` : ''})</h2>
-
-            {draws.length > 0 ? (
+    const renderContent = () => {
+        // During the initial load (isLoading is true and we have no draws yet),
+        // display a skeleton loader to reserve the space and prevent layout shift.
+        if (isLoading && draws.length === 0) {
+            return (
+                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {/* Render 13 skeleton cards to match the expected number of draws */}
+                    {Array.from({ length: 13 }).map((_, i) => <SkeletonCard key={i} />)}
+                </div>
+            )
+        }
+        
+        // Once loaded, if there are draws, display them.
+        if (draws.length > 0) {
+            return (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                      {draws.sort((a, b) => a.drawTime.getTime() - b.drawTime.getTime()).map(draw => {
                         const prevDraw = prevDrawsRef.current?.find(d => d.id === draw.id);
                         return <DrawStatusCard key={draw.id} draw={draw} prevDraw={prevDraw} />;
                     })}
                 </div>
-            ) : (
-                <p className="text-center text-brand-text-secondary my-4">No draws scheduled for today.</p>
-            )}
+            )
+        }
+
+        // If not loading and there are still no draws, show the message.
+        return (
+            <p className="text-center text-brand-text-secondary my-4">No draws scheduled for today.</p>
+        );
+    };
+
+    return (
+        <div className="bg-brand-surface/50 p-6 rounded-xl shadow-lg border border-brand-secondary">
+            <h2 className="text-2xl font-semibold text-brand-primary mb-4 text-center">
+                Today's Draw Status 
+                {/* Only show the count once data is loaded to prevent text reflow */}
+                {!isLoading && draws.length > 0 && ` (${draws.length} Draws)`}
+            </h2>
+
+            {renderContent()}
         </div>
     );
 };

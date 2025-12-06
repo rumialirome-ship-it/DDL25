@@ -40,6 +40,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const [marketOverride, setMarketOverrideState] = useState<MarketOverride>('AUTO');
     const [currentClient, setCurrentClient] = useState<Client | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [isSecondaryLoading, setIsSecondaryLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const pollingTimeoutRef = useRef<number | null>(null);
 
@@ -120,60 +121,97 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, []);
 
 
-    // Initial load and light-weight polling
+    // --- PERFORMANCE OPTIMIZATION ---
+    // This effect has been refactored to fetch data incrementally.
+    // `isLoading` is set to false after essential data (draws/auth) loads,
+    // allowing the UI to render while secondary data loads in the background.
     useEffect(() => {
-        const pollData = async () => {
+        const controller = new AbortController();
+        const signal = controller.signal;
+    
+        const initialLoad = async () => {
             try {
-                if(error) setError(null);
-
-                // Always fetch draws as their status is time-sensitive.
-                const drawsData = await apiFetch('/draws');
-                setDraws(drawsData.map((d: Draw) => ({ ...d, drawTime: new Date(d.drawTime) })));
-
-                if (isLoading) {
-                    // This is the initial, one-time load. Fetch everything.
-                    if (localStorage.getItem('ddl_token')) {
-                        try {
-                            const userData = await apiFetch('/auth/me');
-                            if (userData) {
-                                const normalized = normalizeClientData(userData);
-                                setCurrentClient(normalized);
-                                await fetchSecondaryData(normalized);
-                            } else {
-                                // Token was valid but no user data returned (e.g., 204). Treat as invalid.
-                                await logout();
-                            }
-                        } catch (authError) {
-                            // Token was invalid (e.g., 401). Log out to clear it.
-                            console.error("Session restore failed, logging out.", authError);
-                            await logout();
-                        }
-                    }
+                if (error) setError(null);
+    
+                // --- Parallel Fetching of critical data ---
+                const drawsPromise = apiFetch('/draws', { signal });
+                const authPromise = localStorage.getItem('ddl_token') ? apiFetch('/auth/me', { signal }) : Promise.resolve(null);
+    
+                const [drawsResult, authResult] = await Promise.allSettled([drawsPromise, authPromise]);
+    
+                // --- Process Draw Data ---
+                if (drawsResult.status === 'fulfilled' && drawsResult.value) {
+                    setDraws(drawsResult.value.map((d: Draw) => ({ ...d, drawTime: new Date(d.drawTime) })));
                 } else {
-                    // This is a subsequent poll. Only refresh the current client's data (for wallet updates).
-                    await refreshCurrentClient();
+                    console.error("Failed to fetch draws:", drawsResult.status === 'rejected' ? drawsResult.reason : 'No data');
+                    throw new Error("Could not fetch draw information.");
                 }
-
-                pollingTimeoutRef.current = window.setTimeout(pollData, 15000);
-            } catch (err) {
-                console.error("Data polling failed:", err);
-                setError("Could not connect to the server. Please ensure the backend server is running and accessible.");
-            } finally {
-                if (isLoading) {
+                
+                // --- UNBLOCK UI RENDER ---
+                // The main app can now render with public draw data.
+                setIsLoading(false);
+    
+                // --- Process Authentication & Fetch Secondary Data ---
+                if (authResult.status === 'fulfilled' && authResult.value) {
+                    const loggedInClient = normalizeClientData(authResult.value);
+                    setCurrentClient(loggedInClient);
+                    setIsSecondaryLoading(true);
+                    await fetchSecondaryData(loggedInClient);
+                    setIsSecondaryLoading(false);
+                } else {
+                    if (authResult.status === 'rejected') {
+                        console.error("Session restore failed, logging out.", authResult.reason);
+                        await logout();
+                    }
+                    setIsSecondaryLoading(false); // No user, so no secondary data to load.
+                }
+    
+            } catch (err: any) {
+                if (err.name !== 'AbortError') {
+                    console.error("Initial data load failed:", err);
+                    setError("Could not connect to the server. Please check your connection and try again.");
                     setIsLoading(false);
+                    setIsSecondaryLoading(false);
                 }
             }
         };
-
-        pollData();
-
+    
+        const pollData = async () => {
+            try {
+                const drawsData = await apiFetch('/draws', { signal });
+                setDraws(drawsData.map((d: Draw) => ({ ...d, drawTime: new Date(d.drawTime) })));
+                
+                if (localStorage.getItem('ddl_token')) {
+                    await refreshCurrentClient();
+                }
+    
+            } catch (err: any) {
+                 if (err.name !== 'AbortError') {
+                    console.error("Data polling failed:", err);
+                 }
+            } finally {
+                if (!signal.aborted) {
+                    pollingTimeoutRef.current = window.setTimeout(pollData, 15000);
+                }
+            }
+        };
+    
+        const runInitialLoadAndStartPolling = async () => {
+            await initialLoad();
+            if (!signal.aborted) {
+                pollingTimeoutRef.current = window.setTimeout(pollData, 15000);
+            }
+        };
+    
+        runInitialLoadAndStartPolling();
+    
         return () => {
+            controller.abort();
             if (pollingTimeoutRef.current) {
                 clearTimeout(pollingTimeoutRef.current);
             }
         };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []); // This effect runs only once on mount.
+    }, [logout, fetchSecondaryData, refreshCurrentClient, error]);
 
     const login = useCallback(async (loginIdentifier: string, password: string, role: Role): Promise<{ success: boolean; message?: string }> => {
         try {
@@ -183,7 +221,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             });
             localStorage.setItem('ddl_token', data.token);
 
-            // On login, perform a full data fetch.
             const userData = await apiFetch('/auth/me');
             if(!userData) {
                 throw new Error('Login succeeded but failed to retrieve user profile. Please try again.');
@@ -191,15 +228,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             
             const normalized = normalizeClientData(userData);
             setCurrentClient(normalized);
+
+            // Fetch secondary data in the background after login
+            setIsSecondaryLoading(true);
             await fetchSecondaryData(normalized);
+            setIsSecondaryLoading(false);
 
             const drawsData = await apiFetch('/draws');
             setDraws(drawsData.map((d: Draw) => ({ ...d, drawTime: new Date(d.drawTime) })));
 
             return { success: true };
         } catch (error: any) {
-            // Ensure any stale token is cleared on login failure.
             await logout();
+            setIsSecondaryLoading(false); // Ensure this is reset on error
             return { success: false, message: error.message };
         }
     }, [fetchSecondaryData, logout]);
@@ -214,8 +255,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 body: JSON.stringify({ bets: betsToPlace }),
             });
             
-            // --- PERFORMANCE OPTIMIZATION ---
-            // Instead of refetching all data, intelligently update the state with the new data from the API response.
             setCurrentClient(result.updatedClient);
             setBets(prev => [...prev, ...result.newBets.map((b: any) => ({...b, stake: Number(b.stake), createdAt: new Date(b.createdAt)}))]);
             setTransactions(prev => [...prev, ...result.newTransactions.map((t: any) => ({...t, amount: Number(t.amount), balanceAfter: Number(t.balanceAfter), createdAt: new Date(t.createdAt), isReversed: !!t.isReversed }))]);
@@ -247,9 +286,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 body: JSON.stringify({ winningNumbers }),
             });
             
-            // --- PERFORMANCE OPTIMIZATION ---
-            // This is a major event affecting all data types. A full, explicit refresh is acceptable here,
-            // but we do it with parallel requests for efficiency instead of calling fetchSecondaryData.
             const [drawsData, clientsData, betsData, transactionsData] = await Promise.all([
                 apiFetch('/draws'),
                 apiFetch('/admin/clients'),
@@ -289,15 +325,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             });
             const updatedClient = normalizeClientData(updatedClientData);
 
-            // Update the specific client in state
             setClients(prev => prev.map(c => c.id === clientId ? updatedClient : c));
-             // If the admin is adjusting their own client's wallet, update currentClient too
             if (currentClient?.id === clientId) {
                 setCurrentClient(updatedClient);
             }
 
-            // --- PERFORMANCE OPTIMIZATION ---
-            // Only refetch transactions, as bets and other clients are unaffected.
             const transactionsResult = await apiFetch('/admin/transactions');
             setTransactions(transactionsResult.map((t: any) => ({...t, amount: Number(t.amount), balanceAfter: Number(t.balanceAfter), createdAt: new Date(t.createdAt), isReversed: !!t.isReversed })));
             
@@ -359,8 +391,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 body: JSON.stringify({ bets: betsToPlace, clientId }),
             });
             
-            // --- PERFORMANCE OPTIMIZATION ---
-            // Instead of refetching all data, intelligently update the state with the new data from the API response.
             setClients(prev => prev.map(c => c.id === clientId ? result.updatedClient : c));
             setBets(prev => [...prev, ...result.newBets.map((b: any) => ({...b, stake: Number(b.stake), createdAt: new Date(b.createdAt)}))]);
             setTransactions(prev => [...prev, ...result.newTransactions.map((t: any) => ({...t, amount: Number(t.amount), balanceAfter: Number(t.balanceAfter), createdAt: new Date(t.createdAt), isReversed: !!t.isReversed }))]);
@@ -440,8 +470,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 method: 'POST',
             });
             
-            // --- PERFORMANCE OPTIMIZATION ---
-            // Only refetch clients and transactions, as bets are unaffected.
             const [clientsData, transactionsData] = await Promise.all([
                 apiFetch('/admin/clients'),
                 apiFetch('/admin/transactions')
@@ -480,7 +508,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, [bets]);
 
     const value: AppContextType = useMemo(() => ({
-        isLoading,
+        isLoading, isSecondaryLoading,
         currentClient, clients, draws, bets, betsByDraw, transactions, marketOverride,
         login, logout, setMarketOverride, placeBulkBetsForCurrentClient,
         declareWinner, registerClient, adjustClientWallet, updateClientDetailsByAdmin,
@@ -492,7 +520,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setDeclaredNumbers,
         reverseWinningTransaction,
     }), [
-        isLoading,
+        isLoading, isSecondaryLoading,
         currentClient, clients, draws, bets, betsByDraw, transactions, marketOverride,
         login, logout, placeBulkBetsForCurrentClient,
         declareWinner, registerClient, adjustClientWallet, updateClientDetailsByAdmin,

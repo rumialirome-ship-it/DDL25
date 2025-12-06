@@ -106,6 +106,7 @@ export interface ClientImportData {
 
 export interface AppContextType {
     isLoading: boolean;
+    isSecondaryLoading: boolean;
     currentClient: Client | null;
     clients: Client[];
     draws: Draw[];
