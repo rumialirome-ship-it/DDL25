@@ -480,6 +480,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, [bets]);
 
     const value: AppContextType = useMemo(() => ({
+        isLoading,
         currentClient, clients, draws, bets, betsByDraw, transactions, marketOverride,
         login, logout, setMarketOverride, placeBulkBetsForCurrentClient,
         declareWinner, registerClient, adjustClientWallet, updateClientDetailsByAdmin,
@@ -491,6 +492,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setDeclaredNumbers,
         reverseWinningTransaction,
     }), [
+        isLoading,
         currentClient, clients, draws, bets, betsByDraw, transactions, marketOverride,
         login, logout, placeBulkBetsForCurrentClient,
         declareWinner, registerClient, adjustClientWallet, updateClientDetailsByAdmin,
@@ -499,10 +501,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         placeBetsForClient, updateDrawTime, shiftAllDrawTimes,
         updateClient, placeBet, setDeclaredNumbers, setMarketOverride, reverseWinningTransaction
     ]);
-
-    if (isLoading) {
-        return <div className="min-h-screen bg-brand-bg flex items-center justify-center text-brand-primary text-xl">Loading Application...</div>;
-    }
     
     if (error && !currentClient) {
         return (

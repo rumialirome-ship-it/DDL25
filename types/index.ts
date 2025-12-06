@@ -105,6 +105,7 @@ export interface ClientImportData {
 }
 
 export interface AppContextType {
+    isLoading: boolean;
     currentClient: Client | null;
     clients: Client[];
     draws: Draw[];
