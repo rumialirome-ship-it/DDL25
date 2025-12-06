@@ -1,8 +1,23 @@
-// Explicitly load environment variables from a .env file. This is crucial for
-// standalone scripts that rely on database credentials.
-// We specify the path explicitly to avoid any ambiguity.
+// Explicitly load and check environment variables to diagnose connection issues.
 const path = require('path');
-require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
+const envPath = path.resolve(__dirname, '../.env');
+const dotenvResult = require('dotenv').config({ path: envPath });
+
+if (dotenvResult.error) {
+  console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+  console.error('!!! [DEBUG] ERROR: Could not load .env file. This is likely the cause of the database connection error.');
+  console.error(`!!! Path attempted: ${envPath}`);
+  console.error('!!! Please ensure the .env file exists in the /backend directory and has correct read permissions.');
+  console.error('!!! Details:', dotenvResult.error);
+  console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+} else {
+  console.log(`[DEBUG] Attempting to load environment variables from: ${envPath}`);
+  if (Object.keys(dotenvResult.parsed).length === 0) {
+    console.warn('[DEBUG] WARNING: .env file was found, but it is empty.');
+  } else {
+    console.log('✅ [DEBUG] .env file loaded successfully.');
+  }
+}
 
 const bcrypt = require('bcryptjs');
 const dbPool = require('../database/db');
