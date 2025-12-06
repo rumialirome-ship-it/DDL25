@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../../contexts/AppContext.tsx';
-import { TransactionType, Role } from '../../types/index.ts';
+import { Transaction, TransactionType, Role } from '../../types/index.ts';
+import StatsCard from './StatsCard.tsx';
 
 const FinancialLedger: React.FC<{ clientId: string }> = ({ clientId }) => {
     const { transactions, clients, currentClient } = useAppContext();
@@ -34,70 +35,75 @@ const FinancialLedger: React.FC<{ clientId: string }> = ({ clientId }) => {
         }
     };
 
-    const filteredTransactions = useMemo(() => {
-        const clientTxs = transactions
+    const { paginatedTransactions, totalPages, summary, openingBalance, closingBalance } = useMemo(() => {
+        // 1. Get all txs for the client, sorted OLDEST to NEWEST for calculation
+        const allClientTxs = transactions
             .filter(t => t.clientId === clientId)
-            .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+            .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
+        // 2. Determine date range and opening balance
         const range = getDateRange(dateFilter);
-        if (!range) {
-            return clientTxs;
-        }
+        let periodOpeningBalance = 0;
+        let transactionsInPeriod: Transaction[];
 
-        return clientTxs.filter(tx => {
-            const txDate = new Date(tx.createdAt);
-            return txDate >= range.start && txDate < range.end;
-        });
-    }, [transactions, clientId, dateFilter]);
-    
-    const { detailedTransactions, summary } = useMemo(() => {
-        let runningBalance = client?.wallet;
-        if (runningBalance === undefined) {
-             return { detailedTransactions: [], summary: { totalCredit: 0, totalDebit: 0 } };
+        if (range) {
+            // Find the last transaction BEFORE the start of the period to get the opening balance
+            const lastTxBeforePeriod = [...allClientTxs]
+                .reverse()
+                .find(tx => new Date(tx.createdAt) < range.start);
+            
+            periodOpeningBalance = lastTxBeforePeriod ? lastTxBeforePeriod.balanceAfter : 0;
+            
+            transactionsInPeriod = allClientTxs.filter(tx => {
+                const txDate = new Date(tx.createdAt);
+                return txDate >= range.start && txDate < range.end;
+            });
+        } else { // 'all' filter
+            periodOpeningBalance = 0; // For "All Time", opening balance is always 0
+            transactionsInPeriod = allClientTxs;
         }
-
-        // --- ACCURACY REFACTOR ---
-        // Calculate balances by working BACKWARDS from the current definitive wallet balance.
-        // This guarantees the running total is always arithmetically correct and in sync.
-        const transactionsWithCorrectedBalance = filteredTransactions.map(tx => {
-            const correctedTx = { ...tx, correctedBalanceAfter: runningBalance! };
-            // To find the balance *before* this transaction, we reverse its effect.
-            const amount = tx.isReversed ? 0 : tx.amount;
+        
+        // 3. Calculate a new, accurate running balance for each transaction in the period
+        let runningBalance = periodOpeningBalance;
+        const transactionsWithRunningBalance = transactionsInPeriod.map(tx => {
+            const amountEffect = tx.isReversed ? 0 : tx.amount;
             if (tx.type === TransactionType.Credit) {
-                runningBalance! -= amount;
+                runningBalance += amountEffect;
             } else { // DEBIT
-                runningBalance! += amount;
+                runningBalance -= amountEffect;
             }
-            return correctedTx;
+            return { ...tx, runningBalance }; // Add our calculated running balance
         });
+        
+        const periodClosingBalance = transactionsWithRunningBalance.length > 0
+            ? transactionsWithRunningBalance[transactionsWithRunningBalance.length - 1].runningBalance
+            : periodOpeningBalance;
 
-        const totalCredit = filteredTransactions
+        // 4. Calculate summary totals for the period
+        const totalCredit = transactionsInPeriod
             .filter(tx => tx.type === TransactionType.Credit && !tx.isReversed)
             .reduce((sum, tx) => sum + tx.amount, 0);
 
-        const totalDebit = filteredTransactions
+        const totalDebit = transactionsInPeriod
             .filter(tx => tx.type === TransactionType.Debit && !tx.isReversed)
             .reduce((sum, tx) => sum + tx.amount, 0);
 
-        return {
-            detailedTransactions: transactionsWithCorrectedBalance,
-            summary: { totalCredit, totalDebit }
-        };
-    }, [filteredTransactions, client]);
+        // 5. Re-sort NEWEST to OLDEST for user-friendly display
+        const finalSortedTransactions = transactionsWithRunningBalance.reverse();
 
-
-    const paginatedTransactions = useMemo(() => {
+        // 6. Paginate the final, display-ready data
+        const totalPages = Math.ceil(finalSortedTransactions.length / ITEMS_PER_PAGE);
         const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-        return detailedTransactions.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-    }, [detailedTransactions, currentPage]);
+        const paginated = finalSortedTransactions.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
-    const totalPages = Math.ceil(detailedTransactions.length / ITEMS_PER_PAGE);
-
-    const handlePageChange = (newPage: number) => {
-        if (newPage >= 1 && newPage <= totalPages) {
-            setCurrentPage(newPage);
-        }
-    };
+        return {
+            paginatedTransactions: paginated,
+            totalPages,
+            summary: { totalCredit, totalDebit },
+            openingBalance: periodOpeningBalance,
+            closingBalance: periodClosingBalance,
+        };
+    }, [transactions, clientId, dateFilter, currentPage]);
     
     if (!client) {
         return <p className="text-brand-text-secondary">Client not found.</p>;
@@ -134,7 +140,14 @@ const FinancialLedger: React.FC<{ clientId: string }> = ({ clientId }) => {
                 </div>
             </div>
 
-            {detailedTransactions.length === 0 ? (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <StatsCard title="Opening Balance" value={`RS. ${formatCurrency(openingBalance)}`} />
+                <StatsCard title="Total Credit" value={`RS. ${formatCurrency(summary.totalCredit)}`} className="text-green-400" />
+                <StatsCard title="Total Debit" value={`RS. ${formatCurrency(summary.totalDebit)}`} className="text-yellow-400" />
+                <StatsCard title="Closing Balance" value={`RS. ${formatCurrency(closingBalance)}`} className="text-brand-primary" />
+            </div>
+
+            {paginatedTransactions.length === 0 ? (
                 <div className="text-center py-8 bg-brand-bg rounded-lg">
                     <p className="text-brand-text-secondary">No financial history found for the selected period.</p>
                 </div>
@@ -148,7 +161,7 @@ const FinancialLedger: React.FC<{ clientId: string }> = ({ clientId }) => {
                                     <th scope="col" className="px-6 py-3">Description</th>
                                     <th scope="col" className="px-6 py-3 text-right">Debit</th>
                                     <th scope="col" className="px-6 py-3 text-right">Credit</th>
-                                    <th scope="col" className="px-6 py-3 text-right">Total</th>
+                                    <th scope="col" className="px-6 py-3 text-right">Balance</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-brand-secondary/50">
@@ -162,11 +175,11 @@ const FinancialLedger: React.FC<{ clientId: string }> = ({ clientId }) => {
                                         <td className={`px-6 py-3 text-right font-mono text-green-400 ${tx.isReversed ? 'line-through' : ''}`}>
                                             {tx.type === TransactionType.Credit ? `${formatCurrency(tx.amount)}` : '-'}
                                         </td>
-                                        <td className="px-6 py-3 text-right font-mono text-brand-text">{formatCurrency(tx.correctedBalanceAfter)}</td>
+                                        <td className="px-6 py-3 text-right font-mono text-brand-text">{formatCurrency(tx.runningBalance)}</td>
                                     </tr>
                                 ))}
                             </tbody>
-                            <tfoot className="bg-brand-secondary/80 font-bold text-brand-text">
+                             <tfoot className="bg-brand-secondary/80 font-bold text-brand-text">
                                 <tr>
                                     <td className="px-6 py-3 text-right" colSpan={2}>Period Totals</td>
                                     <td className="px-6 py-3 text-right font-mono text-yellow-400">{formatCurrency(summary.totalDebit)}</td>
@@ -180,7 +193,7 @@ const FinancialLedger: React.FC<{ clientId: string }> = ({ clientId }) => {
                     {totalPages > 1 && (
                         <div className="flex justify-between items-center pt-2">
                             <button
-                                onClick={() => handlePageChange(currentPage - 1)}
+                                onClick={() => setCurrentPage(p => p - 1)}
                                 disabled={currentPage === 1}
                                 className="bg-brand-secondary hover:bg-opacity-80 text-brand-text font-bold py-2 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
@@ -190,7 +203,7 @@ const FinancialLedger: React.FC<{ clientId: string }> = ({ clientId }) => {
                                 Page {currentPage} of {totalPages}
                             </span>
                             <button
-                                onClick={() => handlePageChange(currentPage + 1)}
+                                onClick={() => setCurrentPage(p => p + 1)}
                                 disabled={currentPage === totalPages}
                                 className="bg-brand-secondary hover:bg-opacity-80 text-brand-text font-bold py-2 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >

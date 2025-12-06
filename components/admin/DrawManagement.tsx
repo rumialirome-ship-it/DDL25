@@ -4,7 +4,6 @@ import { Draw, DrawStatus, MarketOverride } from '../../types/index.ts';
 import Modal from '../common/Modal.tsx';
 import DrawReport from './DrawReport.tsx';
 import LiveBettingReport from './LiveBettingReport.tsx';
-import Countdown from '../common/Countdown.tsx';
 
 
 const DrawManagement = () => {
@@ -230,23 +229,6 @@ const DrawManagement = () => {
                                 <span className="text-sm text-brand-text-secondary font-mono">{draw.drawTime.toLocaleTimeString()}</span>
                             </div>
                             
-                            {(draw.status === DrawStatus.Open || draw.status === DrawStatus.Upcoming) && (
-                                <div className="text-center bg-brand-bg rounded p-2 mb-3">
-                                    {draw.status === DrawStatus.Open && (
-                                        <>
-                                            <p className="text-xs text-brand-text-secondary mb-1">Booking closes in:</p>
-                                            <Countdown targetDate={new Date(draw.drawTime.getTime() - 10 * 60 * 1000)} />
-                                        </>
-                                    )}
-                                     {draw.status === DrawStatus.Upcoming && (
-                                        <>
-                                            <p className="text-xs text-brand-text-secondary mb-1">Draw starts in:</p>
-                                            <Countdown targetDate={draw.drawTime} />
-                                        </>
-                                    )}
-                                </div>
-                            )}
-
                             <div className="flex-grow mt-2">
                                 {shouldShowNumbers ? (
                                     <div>

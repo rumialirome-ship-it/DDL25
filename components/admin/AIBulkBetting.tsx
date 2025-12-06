@@ -1,7 +1,3 @@
-
-
-
-
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../../contexts/AppContext.tsx';
 import { parseMessageWithRules } from '../../services/RuleBasedParser.ts';
@@ -126,22 +122,8 @@ const SmartBulkBetting = () => {
             <h2 className="text-2xl font-bold text-brand-text mb-4">Rule-Based Bulk Betting</h2>
             {openDraws.length > 0 ? (
                 <div className="space-y-6">
-                     <div>
-                        <label htmlFor="client-select" className="block text-sm font-bold text-brand-text-secondary mb-2">Select Client</label>
-                        <select
-                            id="client-select"
-                            value={selectedClientId}
-                            onChange={e => setSelectedClientId(e.target.value)}
-                            className="w-full bg-brand-surface border border-brand-secondary rounded-lg py-3 px-4 text-brand-text focus:outline-none focus:ring-2 focus:ring-brand-primary"
-                        >
-                            <option value="">-- Choose a client --</option>
-                            {activeClients.map(client => (
-                                <option key={client.id} value={client.id}>{client.username} ({client.clientId}) (Wallet: {client.wallet.toFixed(2)})</option>
-                            ))}
-                        </select>
-                    </div>
                     <div>
-                        <label className="block text-sm font-bold text-brand-text-secondary mb-2">Select an Open Draw</label>
+                        <label className="block text-sm font-bold text-brand-text-secondary mb-2">Step 1: Select an Open Draw</label>
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                             {openDraws.map(draw => {
                                 const isSelected = draw.id === selectedDrawId;
@@ -160,10 +142,24 @@ const SmartBulkBetting = () => {
                             })}
                         </div>
                     </div>
+                     <div>
+                        <label htmlFor="client-select" className="block text-sm font-bold text-brand-text-secondary mb-2">Step 2: Select Client</label>
+                        <select
+                            id="client-select"
+                            value={selectedClientId}
+                            onChange={e => setSelectedClientId(e.target.value)}
+                            className="w-full bg-brand-surface border border-brand-secondary rounded-lg py-3 px-4 text-brand-text focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                        >
+                            <option value="">-- Choose a client --</option>
+                            {activeClients.map(client => (
+                                <option key={client.id} value={client.id}>{client.username} ({client.clientId}) (Wallet: {client.wallet.toFixed(2)})</option>
+                            ))}
+                        </select>
+                    </div>
                    
                     <div>
                         <label htmlFor="bet-message" className="block text-sm font-bold text-brand-text-secondary mb-2">
-                            Paste Client's Message
+                           Step 3: Paste Client's Message
                         </label>
                         <textarea
                             id="bet-message"
