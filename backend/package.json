@@ -8,6 +8,7 @@
     "dev": "nodemon -r dotenv/config server.js",
     "db:init": "echo \"Database initialization is now handled by your MySQL server.\"",
     "db:seed": "node -r dotenv/config ./database/seed.js",
+    "db:test": "node -r dotenv/config utils/testDbConnection.js",
     "admin:reset-password": "node -r dotenv/config utils/resetAdminPassword.js"
   },
   "dependencies": {

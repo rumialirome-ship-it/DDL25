@@ -206,18 +206,66 @@ Useful PM2 commands:
 
 ### 10. Troubleshooting
 
-#### "Access Denied" for database user
+#### "Access Denied" for database user (e.g., `'ddl_user'@'localhost'`)
 
-This means there is a mismatch between credentials in `backend/.env` and your MySQL database.
+This error means the Node.js application is reading your `.env` file correctly, but the MySQL server is rejecting the connection. This is a configuration issue on the MySQL server side. Follow these steps exactly to fix it.
 
-1.  **Check `backend/.env`:** Ensure `DB_USER`, `DB_PASSWORD`, and `DB_DATABASE` are correct.
-2.  **Verify MySQL Password:** Guarantee the password is correct by running: `sudo mysql -e "ALTER USER 'ddl_user'@'localhost' IDENTIFIED BY '<your_strong_password>';"`.
-3.  **Restart PM2:** You **must** run `pm2 restart ddl-backend` after changing the `.env` file.
+**Step 1: Run the Diagnostic Connection Test**
+
+I have created a special script to test only the database connection.
+```bash
+# Navigate to the backend directory first
+cd backend
+
+# Run the test
+npm run db:test
+```
+If this test fails with "Access Denied", proceed to Step 2. If it succeeds, your credentials are correct and the issue may be with how you are running the main application.
+
+**Step 2: The "Nuke and Recreate" User Method**
+
+This is the most reliable way to fix user permission issues. It deletes the old user completely and creates a new one with the correct password and authentication method.
+
+1.  **Choose Your Password:** Decide on the exact password you will use. For example: `MySecurePassword123!`.
+
+2.  **Log in to MySQL as root:**
+    ```bash
+    sudo mysql
+    ```
+
+3.  **Run these commands ONE BY ONE inside the MySQL prompt.** Replace `MySecurePassword123!` with the password you chose.
+    ```sql
+    DROP USER IF EXISTS 'ddl_user'@'localhost';
+    CREATE USER 'ddl_user'@'localhost' IDENTIFIED WITH mysql_native_password BY 'MySecurePassword123!';
+    GRANT ALL PRIVILEGES ON mydb.* TO 'ddl_user'@'localhost';
+    FLUSH PRIVILEGES;
+    EXIT;
+    ```
+    This sequence guarantees the user is correctly configured.
+
+4.  **Update Your `.env` File:**
+    Open the `backend/.env` file. **Carefully copy-paste** the exact password you used in the command above into the `DB_PASSWORD` field.
+    ```env
+    # backend/.env
+    ...
+    DB_PASSWORD=MySecurePassword123!
+    ...
+    ```
+
+5.  **Test Again:**
+    Run the diagnostic test again from the `backend` directory.
+    ```bash
+    npm run db:test
+    ```
+    It should now succeed. Once it does, you can run the main seed script:
+    ```bash
+    npm run db:seed
+    ```
 
 #### Admin login fails with "Invalid credentials"
 
 Run the dedicated script to reset the admin password back to the default (`password`).
 
-1.  Make sure your `backend/.env` file is configured.
+1.  Make sure your `backend/.env` file is configured correctly and the database is running.
 2.  From the `backend` directory, run: `npm run admin:reset-password`.
 3.  Log in with username `01` and password `password`.
