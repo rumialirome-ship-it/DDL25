@@ -2,8 +2,14 @@ import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../../contexts/AppContext.tsx';
 import { Draw, Bet, Client, GameType, BettingCondition, PrizeRate, PositionalPrizeRates } from '../../types/index.ts';
 import { isBetWinner, getGameTypeDisplayName } from '../../utils/helpers.ts';
-import SortableHeader from '../common/SortableHeader.tsx';
 import StatsCard from '../common/StatsCard.tsx';
+
+const ChevronDownIcon: React.FC<{ expanded: boolean }> = ({ expanded }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+    </svg>
+);
+
 
 interface WinningBetDetail {
     bet: Bet;
@@ -11,11 +17,19 @@ interface WinningBetDetail {
     prizeWon: number;
 }
 
-type SortKey = 'client' | 'prizeWon' | 'stake';
+interface GroupedWinner {
+    client: Client;
+    totalWon: number;
+    bets: {
+        bet: Bet;
+        prizeWon: number;
+    }[];
+}
+
 
 const WinnersReport: React.FC<{ draw: Draw | undefined }> = ({ draw }) => {
     const { betsByDraw, clients } = useAppContext();
-    const [sort, setSort] = useState<{ key: SortKey; direction: 'asc' | 'desc' }>({ key: 'prizeWon', direction: 'desc' });
+    const [expandedWinners, setExpandedWinners] = useState<Set<string>>(new Set());
 
     const clientMap = useMemo(() => new Map(clients.map(c => [c.id, c])), [clients]);
 
@@ -59,41 +73,36 @@ const WinnersReport: React.FC<{ draw: Draw | undefined }> = ({ draw }) => {
         return { winners: winningBets, totalPayout };
     }, [draw, betsByDraw, clientMap]);
 
-    const sortedWinners = useMemo(() => {
-        return [...winnersData.winners].sort((a, b) => {
-            let valA, valB;
-            switch(sort.key) {
-                case 'client':
-                    valA = a.client.username;
-                    valB = b.client.username;
-                    break;
-                case 'stake':
-                    valA = a.bet.stake;
-                    valB = b.bet.stake;
-                    break;
-                case 'prizeWon':
-                default:
-                    valA = a.prizeWon;
-                    valB = b.prizeWon;
-                    break;
-            }
+    const groupedWinners = useMemo(() => {
+        const groups = new Map<string, GroupedWinner>();
 
-            if (typeof valA === 'string' && typeof valB === 'string') {
-                 if (valA < valB) return sort.direction === 'asc' ? -1 : 1;
-                 if (valA > valB) return sort.direction === 'asc' ? 1 : -1;
-                 return 0;
+        for (const winnerDetail of winnersData.winners) {
+            const { client, bet, prizeWon } = winnerDetail;
+            if (!groups.has(client.id)) {
+                groups.set(client.id, {
+                    client,
+                    totalWon: 0,
+                    bets: [],
+                });
             }
-             if (valA < valB) return sort.direction === 'asc' ? -1 : 1;
-             if (valA > valB) return sort.direction === 'asc' ? 1 : -1;
-             return 0;
+            const group = groups.get(client.id)!;
+            group.totalWon += prizeWon;
+            group.bets.push({ bet, prizeWon });
+        }
+
+        return Array.from(groups.values()).sort((a, b) => b.totalWon - a.totalWon);
+    }, [winnersData.winners]);
+
+    const handleToggleExpand = (clientId: string) => {
+        setExpandedWinners(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(clientId)) {
+                newSet.delete(clientId);
+            } else {
+                newSet.add(clientId);
+            }
+            return newSet;
         });
-    }, [winnersData.winners, sort]);
-
-    const handleSort = (key: SortKey) => {
-        setSort(prev => ({
-            key,
-            direction: prev.key === key && prev.direction === 'desc' ? 'asc' : 'desc'
-        }));
     };
 
     if (!draw) {
@@ -108,39 +117,71 @@ const WinnersReport: React.FC<{ draw: Draw | undefined }> = ({ draw }) => {
 
     return (
         <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <StatsCard title="Total Winning Bets" value={winnersData.winners.length.toLocaleString()} />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <StatsCard title="Total Payout for Draw" value={`RS. ${formatCurrency(winnersData.totalPayout)}`} className="text-green-400" />
+                <StatsCard title="Total Winning Bets" value={winnersData.winners.length.toLocaleString()} />
+                <StatsCard title="Total Unique Winners" value={groupedWinners.length.toLocaleString()} />
             </div>
 
-            {winnersData.winners.length === 0 ? (
+            {groupedWinners.length === 0 ? (
                 <p className="text-center text-brand-text-secondary py-8">No winning bets found for this draw.</p>
             ) : (
-                <div className="overflow-x-auto max-h-[60vh]">
-                    <table className="min-w-full text-sm text-left text-brand-text-secondary">
-                        <thead className="text-xs text-brand-text uppercase bg-brand-secondary/80 sticky top-0">
-                            <tr>
-                                <SortableHeader onClick={() => handleSort('client')} sortKey="client" currentSort={sort.key} direction={sort.direction}>Client</SortableHeader>
-                                <th scope="col" className="px-6 py-3">Winning Bet</th>
-                                <th scope="col" className="px-6 py-3">Game</th>
-                                <th scope="col" className="px-6 py-3">Condition</th>
-                                <SortableHeader onClick={() => handleSort('stake')} sortKey="stake" currentSort={sort.key} direction={sort.direction} className="text-right">Stake</SortableHeader>
-                                <SortableHeader onClick={() => handleSort('prizeWon')} sortKey="prizeWon" currentSort={sort.key} direction={sort.direction} className="text-right">Prize Won</SortableHeader>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-brand-secondary/50">
-                            {sortedWinners.map(({ bet, client, prizeWon }) => (
-                                <tr key={bet.id} className="hover:bg-brand-secondary/30">
-                                    <td className="px-6 py-2 font-medium text-brand-text whitespace-nowrap">{client.username} ({client.clientId})</td>
-                                    <td className="px-6 py-2 font-mono text-brand-primary">{bet.number}</td>
-                                    <td className="px-6 py-2">{getGameTypeDisplayName(bet.gameType)}</td>
-                                    <td className="px-6 py-2">{bet.condition}</td>
-                                    <td className="px-6 py-2 text-right font-mono">{formatCurrency(bet.stake)}</td>
-                                    <td className="px-6 py-2 text-right font-mono font-bold text-green-400">{formatCurrency(prizeWon)}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2">
+                    {groupedWinners.map(group => {
+                        const isExpanded = expandedWinners.has(group.client.id);
+                        return (
+                            <div key={group.client.id} className="bg-brand-bg rounded-lg border border-brand-secondary transition-shadow hover:shadow-md">
+                                <button 
+                                    className="w-full flex justify-between items-center p-4 text-left hover:bg-brand-secondary/20"
+                                    onClick={() => handleToggleExpand(group.client.id)}
+                                    aria-expanded={isExpanded}
+                                    aria-controls={`winner-details-${group.client.id}`}
+                                >
+                                    <div className="flex items-center gap-4">
+                                        <div className="flex-shrink-0 text-brand-text-secondary">
+                                            <ChevronDownIcon expanded={isExpanded} />
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-brand-text">{group.client.username} ({group.client.clientId})</p>
+                                            <p className="text-sm text-brand-text-secondary">{group.bets.length} winning {group.bets.length === 1 ? 'bet' : 'bets'}</p>
+                                        </div>
+                                    </div>
+                                    <div className="text-right flex-shrink-0 ml-4">
+                                        <p className="text-sm text-brand-text-secondary">Total Prize Won</p>
+                                        <p className="font-bold text-lg text-green-400">RS. {formatCurrency(group.totalWon)}</p>
+                                    </div>
+                                </button>
+                                {isExpanded && (
+                                    <div id={`winner-details-${group.client.id}`} className="p-4 border-t border-brand-secondary/50 bg-brand-surface/50">
+                                        <div className="overflow-x-auto">
+                                            <table className="min-w-full text-sm text-left text-brand-text-secondary">
+                                                <thead className="text-xs text-brand-text uppercase bg-brand-secondary/80">
+                                                    <tr>
+                                                        <th scope="col" className="px-4 py-2">Winning Bet</th>
+                                                        <th scope="col" className="px-4 py-2">Game</th>
+                                                        <th scope="col" className="px-4 py-2">Condition</th>
+                                                        <th scope="col" className="px-4 py-2 text-right">Stake</th>
+                                                        <th scope="col" className="px-4 py-2 text-right">Prize Won</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-brand-secondary/50">
+                                                    {group.bets.sort((a,b) => b.prizeWon - a.prizeWon).map(({ bet, prizeWon }, index) => (
+                                                        <tr key={`${bet.id}-${index}`}>
+                                                            <td className="px-4 py-2 font-mono text-brand-primary">{bet.number}</td>
+                                                            <td className="px-4 py-2">{getGameTypeDisplayName(bet.gameType)}</td>
+                                                            <td className="px-4 py-2">{bet.condition}</td>
+                                                            <td className="px-4 py-2 text-right font-mono">{formatCurrency(bet.stake)}</td>
+                                                            <td className="px-4 py-2 text-right font-mono font-bold text-green-400">{formatCurrency(prizeWon)}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )
+                    })}
                 </div>
             )}
         </div>
