@@ -123,24 +123,20 @@ const SmartBulkBetting = () => {
             {openDraws.length > 0 ? (
                 <div className="space-y-6">
                     <div>
-                        <label className="block text-sm font-bold text-brand-text-secondary mb-2">Step 1: Select an Open Draw</label>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                            {openDraws.map(draw => {
-                                const isSelected = draw.id === selectedDrawId;
-                                const bettingCloseTime = new Date(draw.drawTime.getTime() - 10 * 60 * 1000);
-                                return (
-                                    <button
-                                        key={draw.id}
-                                        onClick={() => setSelectedDrawId(draw.id)}
-                                        className={`p-3 rounded-lg border text-center transition-all duration-200 ${isSelected ? 'bg-brand-primary/20 border-brand-primary ring-2 ring-brand-primary shadow-lg' : 'bg-brand-surface border-brand-secondary hover:border-brand-primary/50'}`}
-                                    >
-                                        <h4 className="font-bold text-brand-text">Draw {draw.name}</h4>
-                                        <p className="text-xs text-brand-text-secondary mb-2">Time: {draw.drawTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                                        <Countdown targetDate={bettingCloseTime} />
-                                    </button>
-                                );
-                            })}
-                        </div>
+                        <label htmlFor="draw-select-admin" className="block text-sm font-bold text-brand-text-secondary mb-2">Step 1: Select an Open Draw</label>
+                        <select
+                            id="draw-select-admin"
+                            value={selectedDrawId}
+                            onChange={e => setSelectedDrawId(e.target.value)}
+                            className="w-full bg-brand-surface border border-brand-secondary rounded-lg py-3 px-4 text-brand-text focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                        >
+                            <option value="">-- Choose a draw --</option>
+                            {openDraws.map(draw => (
+                                <option key={draw.id} value={draw.id}>
+                                    Draw {draw.name} - {draw.drawTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
+                                </option>
+                            ))}
+                        </select>
                     </div>
                      <div>
                         <label htmlFor="client-select" className="block text-sm font-bold text-brand-text-secondary mb-2">Step 2: Select Client</label>
